@@ -246,9 +246,9 @@ TUNING =
 
 这个表里定义了一堆常量，所有文件都可以引用之，也可以修改之。
 
-### 2.3 初始化函数内变量
+### 2.3 类的成员变量
 
-modutil.lua里定义了一些函数用来将你自己的代码注入到初始化函数中。以`Prefab`为例说明。
+modutil.lua里定义了一些函数用来将你自己的代码注入到类中。以`Prefab`为例说明。
 
 ```lua
 --prefabs.lua
@@ -482,9 +482,9 @@ end
 
 `ModRPCHandler`是给mod用的定义网络模块，具体见https://forums.kleientertainment.com/forums/topic/122473-new-modding-rpcs-api
 
-# 3 修改模式
+## 3 修改模式
 
-## 3.1 装饰器模式
+### 3.1 装饰器模式
 
 装饰器是一个能够为原函数添加新功能的函数
 
