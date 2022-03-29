@@ -36,7 +36,6 @@ local b=2
 print(b)
 print(_G.b)
 print(a+b)
-print()
 ```
 
 饥荒中的许多prefab（在prefabs/文件夹中）定义了大量的局部变量，我们无法正常获取这些变量。
@@ -104,7 +103,7 @@ modmain.lua在进入世界时加载，提供运行信息
         name = "set_idioma",
         label = "Language/Idioma/选择语言",
 		hover = "Change mod language...",
-        options = 
+        options =
         {
 			{description = "English", data = "stringsEU"},
      		{description = "中國", data = "stringsCh"},
@@ -208,9 +207,9 @@ modimport("scripts/a.lua")
 以皮肤系统为例，我们知道KLei检查是否拥有皮肤会调用`TheInventory:Check(Client)Ownership(user_id, item)`，这个接口定义在c/c++层。我们试图修改之：
 
 ```lua
-local oldClientCheckfn=TheInventory.CheckClientOwnership
-local oldCheckfn=TheInventory.CheckOwnership
-local newCheckfn=function(...)return true end
+oldClientCheckfn=TheInventory.CheckClientOwnership
+oldCheckfn=TheInventory.CheckOwnership
+newCheckfn=function(...)return true end
 TheInventory.CheckClientOwnership=newCheckfn
 print(TheInventory:CheckClientOwnership())
 --attempt to index global 'TheInventory' (a userdata value)
@@ -433,7 +432,7 @@ PrefabFiles={"abigail"}
 
 `name,value=debug.getupvalue(env, id)`与`debug.setupvalue(env, id, value)`是lua自带的调试工具。它能获取到局部变量。
 
-以下是一个简单的例子，你可以去网上找一些递归实现版本。
+以下是一个简单的例子，但是它只实现了一层作用域的hack。
 
 ```lua
 function GetAllValue(env)
@@ -475,6 +474,27 @@ function SetValue(env, key, val)
     end
 end
 ```
+
+我们的目标是把这个工具做成适用于所有局部变量的东西。在上述函数`GetValue`中，我们输入`Prefabs[prefab_name].fn`作为`env`，其中`prefab_name`是某个prefab的名字，就可以读到这个成员函数里使用的所有变量了。但事情往往是这样的：
+
+```lua
+local c=AnotherFnInAnotherFile()
+local d=Whatever.variable.defined.in.another.file
+local function f3(d)
+    return a+d
+end
+local function f2()
+    return f3(c)
+end
+local function f1()
+    return c==d and f2() or nil
+end
+local function fn()
+    a=f1()
+end
+```
+
+这个时候你想要改d的话，就必须使用`SetValue(GetValue(GetValue(GetValue(fn,"f1"),"f2"),"f3"),"d",your_custom_d)`，这肯定要写成递归或栈吧。进一步，我们还想规定一下语法，比如`SetSyntaxValue(fn,"f1.f2.f3.d",your_custom_d)`这种易读的写法，这可以使用正则表达式实现。
 
 ### 2.5 服务器变量
 
@@ -535,4 +555,84 @@ function self:Close()
     end
 end
 ```
+
+## 4 Debug
+
+### 4.1 读日志
+
+在`Documents\Klei\DoNotStarveTogether\`文件夹里有几个日志，其中client_log一定会出现。
+
+1.   client_log.txt
+2.   server_log.txt
+3.   master_server_log.txt
+4.   caves_server_log.txt
+
+我们以client_log为例读一读
+
+`[00:00:00]: System Memory:`一些系统信息
+
+`[00:00:06]: loaded modindex`开始加载modinfo了，这时你能看到一些关于mod的信息
+
+`[00:00:16]: Reset() returning`加载mod完毕
+
+`[00:00:16]: Do AutoLogin`开始登录
+
+（未完待续）
+
+### 4.2 使用print调试
+
+一般我调试c/c++/python/js都可以加断点，也可以单步调试，但我好像不懂怎么调试一个游戏。所以还是老办法，每隔几行就print一下，然后看日志。
+
+但是为了节省代码量，我们希望这个print功能具有如下特点：
+
+1. 能够有一个标志全部启用/禁用
+2. 能够输出所在函数、行号
+3. 在2的基础上，回溯追踪打印出函数调用栈
+4. 支持代码测试
+
+这些功能有的很容易实现，我来写一个
+
+```lua
+--当然是可变参数了
+function Print(...)
+    --[[getinfo(level,arg)
+    level=0,env=getinfo
+    level=1,env=Print
+    level=2,env=调用Print的函数
+    ...
+    ]]
+    local info=debug.getinfo(2)
+    local defaultvalue="???"
+    --读文件名
+    --@xxx.lua
+    local filename=info.source or defaultvalue
+    --读函数名
+    local fnname=info.name or defaultvalue
+    local lua,c="Lua","C"
+    local type=fnname.what
+    if type~=lua and type~=c then
+        --lua的二进制程序
+        type="LuaBinary"
+    --读行号，读不到就读函数定义句的行号
+    local line=info.currentline~=-1 and info.currentline or info.linedefined
+    --合成字符串
+    local str=packstring(filename,":",line,"\n",type," Function ",fnname,"\n",...)
+    print(str)
+end
+```
+
+然后，我们就可以稍微修改一下，得到一个循环追踪版本的print函数了。其实`debug.traceback(msg)`就封装了这个功能。
+
+```lua
+function Print(...)
+	local maxlevel=10
+    for level=2,maxlevel do
+        --复制粘贴，稍微改改
+    end
+end
+```
+
+然后我们想要支持代码测试，即`assert`语句但不报错只提示。我想，可以用`debug.getupvalue`来实现，能够支持像`Assert("inst.components.hunger.value",1)->"Test passed, value==1" | "Test failed, value=2, not 1" | "Test aborted, hunger is nil, everything in inst.components are {...}"`这样的。
+
+
 
