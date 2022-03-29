@@ -200,7 +200,7 @@ modimport("scripts/a.lua")
 
 ## 2 变量修改策略
 
-### 2.1 变量类型
+### 2.1 c/lua变量类型
 
 由于lua语言允许c/c++，而且饥荒的底层引擎（动画、皮肤系统等）确实是用c/c++编写的，这导致我们在lua层无法修改c/c++层，除非你不用lua，用其他工具，这是非常困难的。
 
@@ -305,7 +305,7 @@ local function commonfn(anim, tag, should_sink)
     inst.entity:AddSoundEmitter()
 
     MakeInventoryPhysics(inst)
-	--AnimState定义在c/c++层，也没法改
+    --AnimState定义在c/c++层，也没法改
     inst.AnimState:SetBank("amulets")
     inst.AnimState:SetBuild("amulets")
     inst.AnimState:PlayAnimation(anim)
@@ -617,6 +617,16 @@ function Print(...)
     --读行号，读不到就读函数定义句的行号
     local line=info.currentline~=-1 and info.currentline or info.linedefined
     --合成字符串
+    --来自Gem Core的代码
+    local function packstring(...)
+        local str = ""
+        local n = select('#', ...)
+        local args = {...}
+        for i=1,n do
+            str = str..tostring(args[i])
+        end
+        return str
+    end
     local str=packstring(filename,":",line,"\n",type," Function ",fnname,"\n",...)
     print(str)
 end
