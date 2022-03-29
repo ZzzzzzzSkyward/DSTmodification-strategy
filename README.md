@@ -480,7 +480,7 @@ end
 ```lua
 local c=AnotherFnInAnotherFile()
 local d=Whatever.variable.defined.in.another.file
-local function f3(d)
+local function f3(a)
     return a+d
 end
 local function f2()
