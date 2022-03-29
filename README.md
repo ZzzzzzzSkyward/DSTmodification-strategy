@@ -609,7 +609,7 @@ function Print(...)
     --读函数名
     local fnname=info.name or defaultvalue
     local lua,c="Lua","C"
-    local type=fnname.what
+    local type=info.what
     if type~=lua and type~=c then
         --lua的二进制程序
         type="LuaBinary"
