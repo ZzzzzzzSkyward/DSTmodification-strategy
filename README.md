@@ -613,6 +613,7 @@ function Print(...)
     if type~=lua and type~=c then
         --lua的二进制程序
         type="LuaBinary"
+    end
     --读行号，读不到就读函数定义句的行号
     local line=info.currentline~=-1 and info.currentline or info.linedefined
     --合成字符串
