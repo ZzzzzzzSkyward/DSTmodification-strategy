@@ -12,7 +12,7 @@ lua语言将全局环境变量存储到表`_G`中。
 
 定义全局变量`a=1`等效于`_G.a=1`或`_G["a"]=1`，如果之前已经存在变量`a`，则会覆盖`a`。
 
-读取全局变量时如`b=a+1`等效于`_G.b=_G.a+1`，如果a未定义则报错。为了避免报错，可以使用函数`rawget`与`rawset`，将读取语句重写成`b=_G.rawget(_G,"a")`，如此当`a`未定义时，`rawget`就返回`nil`，避免了报错。进一步，为了避免`c=a.b`中`a`是`nil`时报错，往往需要写成`c=a~=nil and a.b`。
+读取全局变量时如`b=a+1`等效于`_G.b=_G.a+1`，如果a未定义则报错。为了避免报错，可以使用函数`rawget`与`rawset`，将读取语句重写成`b=_G.rawget(_G,"a")+1`，如此当`a`未定义时，`rawget`就返回`nil`，避免了报错。进一步，为了避免`c=a.b`中`a`是`nil`时报错，往往需要写成`c=a~=nil and a.b`。
 
 由于全局环境表`_G`一般是不会去动它的，所以今后代码中位于`_G`的函数我都不再加`_G`前缀了。
 
@@ -27,15 +27,16 @@ for i,v in pairs(_G) do print(i,v) end
 
 ### 1.2 局部环境
 
-所有用`local`关键词定义的变量都不是存在`_G`里的，比如`local a=1`，此时`print(_G.a)`，只会输出nil。此时`a`作为一个`upvalue`存在，是无法通过正常手段在其他环境中获取的。在lua5.2及以上版本，这些`upvalue`默认存储在局部环境表`_ENV`中。
+所有用`local`关键词定义的变量都不是存在`_G`里的，比如`local a=1 print(_G.a)`，只会输出`variable 'a' is not declared`。此时`a`作为一个`upvalue`存在（这句话不严谨），是无法通过正常手段在其他环境中获取的。在lua5.2及以上版本，这些`upvalue`默认存储在局部环境表`_ENV`中。
 
 ```lua
---练习
+--练习，在控制台里一行一行输入
 a=1
 local b=2
 print(b)
 print(_G.b)
 print(a+b)
+--答案见### 4.4
 ```
 
 饥荒中的许多prefab（在prefabs/文件夹中）定义了大量的局部变量，我们无法正常获取这些变量。
@@ -148,7 +149,7 @@ GLOBAL.setmetatable(env, {
 })
 ```
 
-如此一来，就不需要使用`GLOBAL.xxx`，而是直接输入`xxx`就能读到`GLOBAL`里的变量了。
+如此一来，就不需要使用`GLOBAL.xxx`，而是直接输入`xxx`就能读到`GLOBAL`里的变量了。还有一个`setfenv(1,_G)`也能起到同样的效果，不过这句话会直接切到全局，如果你不小心就可能污染已有的全局变量，因此不推荐。
 
 在mods.lua中可以看到`env`里塞了什么东西：
 
@@ -430,7 +431,9 @@ PrefabFiles={"abigail"}
 
 #### 2.4.2 debug工具
 
-`name,value=debug.getupvalue(env, id)`与`debug.setupvalue(env, id, value)`是lua自带的调试工具。它能获取到局部变量。
+`name,value=debug.getupvalue(env, id)`与`debug.setupvalue(env, id, value)`是lua自带的调试工具。它能获取到局部变量。第一个参数的专业名称叫`闭包closure`，我们理解成局部变量的作用域，通常是一个函数的作用域。
+
+还有一个`debug.getlocal`，是获取函数内定义的局部变量的，但我们需要的往往是函数外定义的局部变量，如果必要你也可以把这个东西添加到你的工具箱里。
 
 以下是一个简单的例子，但是它只实现了一层作用域的hack。
 
@@ -556,6 +559,12 @@ function self:Close()
 end
 ```
 
+### 3.2 钩子函数
+
+### 3.3 探测入口
+
+### 3.4 加强mod兼容性
+
 ## 4 Debug
 
 ### 4.1 读日志
@@ -639,11 +648,27 @@ function Print(...)
 	local maxlevel=10
     for level=2,maxlevel do
         --复制粘贴，稍微改改
+        --注意判断循环终止条件：如果当前函数不存在或已经不是Lua函数，就没必要再追踪下去了
     end
 end
 ```
 
 然后我们想要支持代码测试，即`assert`语句但不报错只提示。我想，可以用`debug.getupvalue`来实现，能够支持像`Assert("inst.components.hunger.value",1)->"Test passed, value==1" | "Test failed, value=2, not 1" | "Test aborted, hunger is nil, everything in inst.components are {...}"`这样的。
 
+### 4.3 独立的输出文件
 
+### 4.4 控制台
+
+注意：每次在控制台里输入一句话并执行，都会创建一个新的环境，所以必须在全局环境中操作。
+
+```lua
+local a=1
+--回车
+print(a)
+--variable 'a' is not dec
+a=1
+--回车
+print(a)
+--1
+```
 
