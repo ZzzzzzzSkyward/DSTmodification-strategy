@@ -115,7 +115,7 @@ my-mod/
 
 饥荒的动画系统代码在c/c++层，我们读不到，只能通过Klei在代码中留下的蛛丝马迹、草蛇灰线，顺藤摸瓜、盲人摸象。
 
-以下是2021年6月Hornete（https://forums.kleientertainment.com/forums/topic/126774-documentation-list-of-all-engine-functions/）遍历动画系统打印出来的全体函数。但时间过去这么久了，Klei肯定加新函数了吧。
+以下是2021年6月Hornete（https://forums.kleientertainment.com/forums/topic/126774-documentation-list-of-all-engine-functions/ ）遍历动画系统打印出来的全体函数。但时间过去这么久了，Klei肯定加新函数了吧。
 
 **AnimState**
 
@@ -359,11 +359,11 @@ K帧：K
 
 # 练习
 
-你可以选择我提供的几个主意，或自己设计。如果你觉得你有想法的话，甚至可以尝试发布到创意工坊。
+你可以选择我提供的几个想法，或自己设计。如果你觉得你有想法的话，甚至可以尝试发布到创意工坊。
 
 ## 1 暗影格洛姆
 
-众所周知，月圆之夜格洛姆会出现，但其实格洛姆在月黑之夜的黑暗中会暂时拥有全新的外观“暗影格洛姆”！如图所示，是月黑之夜我用鼹鼠帽截图并进行后期处理得到的珍贵照片，否则你将完全无法看见格洛姆暗影形态的存在！
+众所周知，月圆之夜格洛姆会出现，但其实格洛姆在月黑之夜的黑暗中会暂时拥有全新的外观“暗影格洛姆”！如图所示，这是月黑之夜我用鼹鼠帽截图并进行后期处理得到的珍贵照片，否则你将完全无法看见格洛姆暗影形态的存在！
 
 ![shadow-glommer](shadow-glommer.png)
 
@@ -374,3 +374,139 @@ K帧：K
 1. 你需要魔改一下你刚刚解压出来的图片。
 2. 你需要找到月相的代码。
 3. 你需要利用寻找附近光源的代码。
+
+## 2 一起跳舞吧格洛姆
+
+格洛姆会跟着玩家舞动，如果玩家在演奏乐器或者发送表情/dance的话。
+
+注意：需要用到状态图stategraph。
+
+提示：
+
+1. 你需要在glommer这个bank里添加新动画。
+2. 你必须保证动画播放开始前与完毕后格洛姆的形状与其他动画的开头吻合。为了节省工作量你可以只做一面（格洛姆有四个面的动画，down、side、up）。
+3. 在SGglommer里修改idle状态，使得如果周围有玩家在演奏乐器或舞蹈，就播放dance动画。
+
+### 3 来，戴顶帽子
+
+一般情况下帽子需要占用`swap_hat`图层，但格洛姆没有这个图层。我们可以变通一下，利用`Follower`函数实现此目标。
+
+提示：
+
+1. 在prefabs/alterguardian_hat_equipped.lua里学习`Follower`的用法。
+2. 在控制台里调试坐标参数。
+
+```lua
+--c_select()获取鼠标下实体
+gl=c_select()
+hat=c_select()
+--[[
+SetParent
+AddFollower
+FollowSymbol
+]]
+```
+
+3. 将正确的坐标记录下来。
+4.  为格洛姆添加`trader`组件，你可以参考猪王、猪人和阿比盖尔等来实现给予格洛姆帽子的动作，不要在交易时删除物品。记得在收到帽子的时候戴上哦。
+4.  你还可以要求格洛姆戴帽子时播放某个动画，这可以简单地用`PlayAnimation(animation)`函数实现。
+
+![glommer-hat](glommer-hat.png)
+
+如图所示，当offset=[0,0,0]时，帽子没有与格洛姆的顶端对齐。
+
+备注：由于此时格洛姆并未真正戴上帽子，这个帽子其实是放在地上跟随格洛姆移动，可以被捡起的。为了真的戴上帽子，我们还需要添加物品栏`inventory`组件，但这就更加复杂了。
+
+## 5 在mod中使用动画
+
+### 5.1 导入资源
+
+饥荒有个资源管理器负责读取动画文件，你把你的zip放到mods/xxx/anim/文件夹里后需要在modmain.lua里手动导入文件。
+
+以下是我写的导入函数，但忽略了bigportraits文件夹。
+
+```lua
+function MakeAsset(type, name, folder, format)
+    type = string.upper(type)
+    if not folder then
+        folder = ""
+        if type == "IMAGE" or type == "ATLAS" then
+            folder = "images"
+        elseif type == "SOUND" or type == "SOUNDPACKAGE" then
+            folder = "sound"
+        elseif type == "ANIM" then
+            folder = "anim"
+        end
+    end
+    if not (string.sub(folder, -1) == "/") then
+        folder = folder .. "/"
+    end
+    if not format then
+        format = "zip"
+        if type == "SOUND" then
+            format = "fsb"
+        elseif type == "SOUNDPACKAGE" then
+            format = "fev"
+        elseif type == "ANIM" then
+            format = "zip"
+        elseif type == "IMAGE" then
+            format = "tex"
+        elseif type == "ATLAS" then
+            format = "xml"
+        end
+    end
+    return Asset(type, folder .. name .. "." .. format)
+end
+```
+
+一般情况下，我们必须定义`Assets`变量，它是一个表，形如
+
+```lua
+Assets={
+    Asset("ANIM","anim/a.zip"),
+    Asset("IMAGE","images/b.tex")
+}
+```
+
+但这么写太麻烦了，我们会采用更加简单的写法：
+
+```lua
+Assets={}
+local assets={
+    ANIM={    
+        "anim/a.zip"
+    },
+    IMAGE={
+        "images/b.tex"
+    }
+}
+for i,v in pairs(assets) do
+    for j,w in ipairs(v) do
+        table.insert(Assets,Asset(i,w))
+    end
+end
+```
+
+### 5.2 bug简介
+
+#### 5.2.1 重名
+
+饥荒的资源管理器检测到添加了两个名字相同的build时会报错。
+
+解决方案1：如果是与官方build重名，不要导入到Assets中，直接覆盖官方build。
+
+解决方案2（推荐）：重命名scml文件。
+
+> 实例：mod《富贵险中求》在添加旋涡斗篷时报错，结果发现mod《神话书说》也添加了相同的build。
+
+#### 5.2.2 未导入[警告]
+
+不导入资源只会给warning。
+
+#### 5.2.3 没有对应的build
+
+使用`inst.AnimState:SetBuild(build)`时，如果资源管理器查不到`build`，就会报warning：`Cannot find anim FROMNUM`。此时inst变透明。
+
+#### 5.2.4 没有对应的animation
+
+在所有anim的所有bank中都查不到animation时，就无法播放对应的动画了。
