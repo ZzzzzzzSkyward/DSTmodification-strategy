@@ -39,6 +39,8 @@ TEX Tool是一组拥有GUI的tex文件查看程序，在textool文件夹里有TE
 
 流程为：包含build的zip与包含anim的zip，解压后用krane转换成scml，编辑scml，然后再用autocompiler转换成zip，删除zip里的anim，只留下build与atlas。
 
+**关于转换出来的动画的问题，请去Spriter介绍那里查阅**
+
 现在请打开命令行程序，输入（具体请看我写的工具说明）
 
 ```bash
@@ -294,7 +296,7 @@ OverrideSymbol(symbol,overridebuild,overridesymbol)
 </Build>
 ```
 
-可见，build里存储的是symbol在不同帧里的具体图片名称与坐标。
+可见，build里存储的是symbol在不同帧里的具体图片名称与中心坐标（就是Spriter里的default pivot）。
 
 打开animation.xml，我又看到了熟悉的单词：
 
@@ -308,7 +310,7 @@ OverrideSymbol(symbol,overridebuild,overridesymbol)
 </Anims>
 ```
 
-可见anim里存储的是不同帧里所有symbol的几何信息。
+可见anim里存储的是不同帧里所有symbol的几何信息：偏移、z轴、旋转、缩放（当然是用矩阵存的了，只不过有一点点问题：Spriter不支持斜切）。
 
 除了animation.xml与build.xml外剩下的就全是图片了。
 
@@ -355,7 +357,9 @@ K帧：K
 
 滚轮缩放
 
-菜单Window-Second View，一个拖动小窗口
+快捷键ctrl+空格精细缩放
+
+Second View，一个拖动小窗口
 
 # 练习
 
@@ -426,36 +430,41 @@ FollowSymbol
 以下是我写的导入函数，但忽略了bigportraits文件夹。
 
 ```lua
-function MakeAsset(type, name, folder, format)
-    type = string.upper(type)
+function MakeAsset(assettype, name, folder, format)
+    assettype = string.upper(assettype)
     if not folder then
         folder = ""
-        if type == "IMAGE" or type == "ATLAS" then
+        if assettype == "IMAGE" or assettype == "ATLAS" or assettype == "INV_IMAGE" or assettype == "ATLAS_BUILD" then
             folder = "images"
-        elseif type == "SOUND" or type == "SOUNDPACKAGE" then
+        elseif assettype == "PKGREF" or assettype == "DYNAMIC_ANIM" or assettype == "DYNAMIC_ATLAS" then
+            folder = "anim/dynamic"
+        elseif assettype == "SOUND" or assettype == "SOUNDPACKAGE" then
             folder = "sound"
-        elseif type == "ANIM" then
+        elseif assettype == "ANIM" then
             folder = "anim"
         end
     end
-    if not (string.sub(folder, -1) == "/") then
+    if folder ~= "" and string.sub(folder, -1) ~= "/" then
         folder = folder .. "/"
     end
     if not format then
-        format = "zip"
-        if type == "SOUND" then
+        format = nil
+        if assettype == "SOUND" then
             format = "fsb"
-        elseif type == "SOUNDPACKAGE" then
+        elseif assettype == "SOUNDPACKAGE" then
             format = "fev"
-        elseif type == "ANIM" then
+        elseif assettype == "ANIM" or assettype == "DYNAMIC_ANIM" then
             format = "zip"
-        elseif type == "IMAGE" then
+        elseif assettype == "IMAGE" or assettype == "INV_IMAGE" then
             format = "tex"
-        elseif type == "ATLAS" then
+        elseif assettype == "ATLAS" or assettype == "DYNAMIC_ATLAS" or assettype == "ATLAS_BUILD" then
             format = "xml"
+        elseif assettype == "PKGREF" then
+            format = "dyn"
         end
     end
-    return Asset(type, folder .. name .. "." .. format)
+    return Asset(assettype, folder .. name .. (format and ("." .. format) or ""),
+        assettype == "ATLAS_BUILD" and 256 or nil)
 end
 ```
 
@@ -499,14 +508,17 @@ end
 
 > 实例：mod《富贵险中求》在添加旋涡斗篷时报错，结果发现mod《神话书说》也添加了相同的build。
 
+解决方案3：用BuildRenamer修改build.bin里的build名。（貌似krane也可以？）
+
 #### 5.2.2 未导入[警告]
 
 不导入资源只会给warning。
 
 #### 5.2.3 没有对应的build
 
-使用`inst.AnimState:SetBuild(build)`时，如果资源管理器查不到`build`，就会报warning：`Cannot find anim FROMNUM`。此时inst变透明。
+使用`inst.AnimState:SetBuild(build)`时，如果资源管理器查不到`build`，就会报warning：`Could not find anim build FROMNUM`。此时inst变透明。
 
 #### 5.2.4 没有对应的animation
 
-在所有anim的所有bank中都查不到animation时，就无法播放对应的动画了。
+在所有anim的所有bank中都查不到animation时，就无法播放对应的动画了。此时状态图会在某个节点卡死。
+

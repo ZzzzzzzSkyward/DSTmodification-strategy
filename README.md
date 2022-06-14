@@ -25,6 +25,41 @@ for i,v in pairs(_G) do print(i,v) end
 
 我们通过这个练习注意到，`_VERSION="Lua 5.1"`，所以想要学习联机版的代码，就需要知道lua5.1的语法。
 
+创建与使用全局变量
+
+```lua
+--方法1，仅声明
+global("a")
+--方法2，声明并初始化
+a=nil
+--方法3
+_G.rawset(_G,"a",nil)
+--......
+--全局环境使用
+a=1
+--安全地使用
+_G.rawset(_G,"a",1)
+--在函数内使用
+function fn()
+    --声明我要创建新的全局变量
+    global("b")
+    b=2
+    --直接使用现有的全局变量
+    a=3
+    --不可以不声明就使用（函数内必须加local）
+	--c=4
+    --声明并使用局部变量
+    local c=4
+end
+```
+
+注：你也可以关闭全局环境的严格模式。
+
+```lua
+local strict_check=getmetatable(_G)
+setmetatable(_G, {})
+```
+
 ### 1.2 局部环境
 
 所有用`local`关键词定义的变量都不是存在`_G`里的，比如`local a=1 print(_G.a)`，只会输出`variable 'a' is not declared`。此时`a`作为一个`upvalue`存在（这句话不严谨），是无法通过正常手段在其他环境中获取的。在lua5.2及以上版本，这些`upvalue`默认存储在局部环境表`_ENV`中。
@@ -59,7 +94,7 @@ modmain.lua在进入世界时加载，提供运行信息
 
 - modname=folder_name，自动设置成mod文件夹名
 
-- locale=LOC.GetLocaleCode()
+- locale=LOC.GetLocaleCode()=LOCALE.CurrentLocale
 
 - ChooseTranslationTable = function(tbl)
 
@@ -109,6 +144,8 @@ modmain.lua在进入世界时加载，提供运行信息
 			{description = "English", data = "stringsEU"},
      		{description = "中國", data = "stringsCh"},
         },
+    	client=false,
+    	is_keylist=false,
         default="stringsEU"
 },
 ```
