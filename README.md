@@ -8,22 +8,21 @@
 
 ### 1.1 全局环境
 
-lua语言将全局环境变量存储到表`_G`中。
+lua语言（5.1版）将全局环境变量存储到表`_G`中。
 
 定义全局变量`a=1`等效于`_G.a=1`或`_G["a"]=1`，如果之前已经存在变量`a`，则会覆盖`a`。
 
-读取全局变量时如`b=a+1`等效于`_G.b=_G.a+1`，如果a未定义则报错。为了避免报错，可以使用函数`rawget`与`rawset`，将读取语句重写成`b=_G.rawget(_G,"a")+1`，如此当`a`未定义时，`rawget`就返回`nil`，避免了报错。进一步，为了避免`c=a.b`中`a`是`nil`时报错，往往需要写成`c=a~=nil and a.b`。
+读取全局变量时如`b=a+1`等效于`_G.b=_G.a+1`，如果a未定义则报错。为了避免报错，可以使用函数`rawget`与`rawset`，将读取语句重写成`b=_G.rawget(_G,"a")+1`，如此当`a`未定义时，`rawget`就返回`nil`，避免了报错。进一步，为了避免`c=a.b`中`a`是`nil`时报错，往往需要写成`c=a~=nil and a.b`，递归地，有`d=a.b.c`写成`d=a and a.b and a.b.c`。
 
 由于全局环境表`_G`一般是不会去动它的，所以今后代码中位于`_G`的函数我都不再加`_G`前缀了。
 
 ```lua
---此处插入一个练习
 --使用pairs函数遍历_G，看看Klei在里面塞了多少东西
 for i,v in pairs(_G) do print(i,v) end
 --打开联机版控制台，复制粘贴，打开client_log.txt看看
 ```
 
-我们通过这个练习注意到，`_VERSION="Lua 5.1"`，所以想要学习联机版的代码，就需要知道lua5.1的语法。
+_G中，`_VERSION="Lua 5.1"`，所以想要学习联机版的代码，就需要知道lua5.1的语法。
 
 创建与使用全局变量
 
@@ -34,14 +33,13 @@ global("a")
 a=nil
 --方法3
 _G.rawset(_G,"a",nil)
---......
---全局环境使用
+--全局环境赋值
 a=1
---安全地使用
+--安全地赋值
 _G.rawset(_G,"a",1)
 --在函数内使用
 function fn()
-    --声明我要创建新的全局变量
+    --声明我要创建新的全局变量，该函数由Klei定义
     global("b")
     b=2
     --直接使用现有的全局变量
@@ -57,24 +55,27 @@ end
 
 ```lua
 local strict_check=getmetatable(_G)
-setmetatable(_G, {})
+if strict_check and strict_check.__index then
+    -- Klei在_G的元表里放了一个assert，会导致使用未声明的全局变量报错
+    strick_check.__index=nil
+end
 ```
 
 ### 1.2 局部环境
 
-所有用`local`关键词定义的变量都不是存在`_G`里的，比如`local a=1 print(_G.a)`，只会输出`variable 'a' is not declared`。此时`a`作为一个`upvalue`存在（这句话不严谨），是无法通过正常手段在其他环境中获取的。在lua5.2及以上版本，这些`upvalue`默认存储在局部环境表`_ENV`中。
+所有用`local`关键词定义的变量都不是存在`_G`里的，比如`local a=1 print(_G.a)`，只会输出`variable 'a' is not declared`。此时`a`作为一个`localvalue`存在，是无法通过正常手段在其他环境中获取的。使用当前环境的局部变量，称之为`upvalue`（上值），可以用debug库获取。
 
 ```lua
---练习，在控制台里一行一行输入
+--在控制台里一行一行输入
 a=1
 local b=2
 print(b)
 print(_G.b)
 print(a+b)
---答案见### 4.4
+--见###4.4
 ```
 
-饥荒中的许多prefab（在prefabs/文件夹中）定义了大量的局部变量，我们无法正常获取这些变量。
+饥荒中的许多prefab（在`prefabs/`文件夹中）定义了一些局部变量，比如`books.lua`，我们无法获取这些变量。所以，为了方便修改，最好不要使用局部变量，留个引用。
 
 ### 1.3 mod环境
 
@@ -84,13 +85,20 @@ modinfo.lua在启动时加载，提供mod设置信息
 
 modmain.lua在进入世界时加载，提供运行信息
 
-注意到modinfo里的_G缺少大量基础函数，比如`pairs`与`ipairs`。
+注意到modinfo里的_G缺少大量基础函数，比如`pairs`与`ipairs`，你只能使用lua语法，而不能调用库。一种调用string库的方法是`local string=""`。
+
+其他的还有：
+
+- modservercreationmain
+
+- modworldgenmain
+- modclientmain（被mod`Mods In Menu`使用）
 
 可以使用`require`语句和`modimport`函数加载其他文件。
 
 #### 1.3.2 modinfo
 
-一个modinfo.lua至少必须包含某些变量，这些变量可以在modindex.lua中查到，它们是
+modinfo.lua的变量可以在modindex.lua中查到，它们是
 
 - modname=folder_name，自动设置成mod文件夹名
 
@@ -106,29 +114,29 @@ modmain.lua在进入世界时加载，提供运行信息
 
 - api_version_dst=10
 
-- 基本信息：
+- 需要你填写的信息：
 
-  - name
-  - description
-  - author
-  - version
-  - api_version=api_version_dst
-  - dont_starve_compatible
-  - reign_of_giants_compatible
-  - configuration_options
-  - dst_compatible
+  - name=mod名称
+  - description=mod简介，超出最大长度，超过部分会看不到
+  - author=作者
+  - version=版本
+  - version_compatible=服务器mod最低兼容的客户端版本
+  - forumthread（弃用）=一个到Klei论坛帖子的链接
+  - server_filter_tags=服务器标签，一张表
+  - api_version=api_version_dst=版本，必须是10
+  - dont_starve_compatible=是否兼容原版
+  - reign_of_giants_compatible=是否兼容RoG，相应地还有SW、Hamlet，但是如果你不做跨版本mod，不需要考虑
+  - configuration_options=设置
+  - dst_compatible=是否兼容DST，必须是true
+  - icon_atlas=图标.xml
+  - icon=图标.tex
+  - priority=优先加载，最后加载填最小的负数（是多少？），最先加载填最大的正数（是多少？）
 
-- mod类型：client_only_mod or all_clients_require_mod or server_only_mod
+- mod类型（只需要填一种）：
 
-还有一些非必需的变量：
+  - client_only_mod
+  - all_clients_require_mod
 
-- forumthread
-- priority
-- server_filter_tags
-- icon
-- icon_atlas
-
-基本信息、api_version_dst和mod类型三类变量需要你自己定义，程序会检查你有没有定义它们。
 
 ##### 1.3.2.1 configuration_options
 
@@ -158,9 +166,11 @@ modmain.lua在进入世界时加载，提供运行信息
 
 客户端`client_only`的意思是不需要服务器计算，比如翻译、动画、音乐、游戏背景图等。
 
-服务器端`server_only`的意思是不需要客户端计算，比如脑子（brains）、各种组件。
+服务器端`server_only`的意思是不需要客户端计算，比如脑子（brain）、组件（component）。
 
 剩下的就是`all_clients_required`，进游戏会自动安装这类mod。
+
+默认是`server_only`
 
 ```lua
 --使用
@@ -174,7 +184,44 @@ AddPrefabPostInit("wilson",function(inst)
 end)
 ```
 
-#### 1.3.3 modmain
+##### 1.3.2.3依赖项
+
+https://forums.kleientertainment.com/forums/topic/121073-new-modinfo-and-modsettings-changes/
+
+```lua
+
+mod_dependencies = {
+    {
+        workshop = "workshop-XXXXXXXXX",
+--this is the workshop id of the mod, this will allow the end users to get prompted to download and sub dependencies
+        ["FolderName"] = false,
+--string entries marked as false are for raw folder name tests, this will attempt to mark the mod stored in mods/FolderName as a dependency
+        ["FancyName"] = true,
+--string entries marked as true are for modname tests. this will attempt to find a mod with the name FancyName and mark it as a dependency
+    },
+    {--you can have multiple dependencies
+        workshop = "workshop-XXXXXXX",
+    	--you can't have multiple workshop id's
+        ["Foo"] = false, --but you can have multiple raw folder names
+        ["Bar"] = false,
+        ["FooBar"] = true, --and multiple fancy names
+        ["BarFoo"] = true,
+    },
+    {	
+       	--only have a workshop dependency
+        workshop = "workshop-XXXXXXXXXX",
+    },
+    {
+        --and even have a mod that has no workshop version as a dependency
+        ["TestMod"] = false,
+        ["Test Mod Official"] = true,
+    },
+}
+```
+
+
+
+####1.3.3 modmain
 
 由于Klei为每个mod设置了不同的环境`env`，并提供了`GLOBAL`环境用来访问`_G`，我们可以手动改一下mod环境，比如
 
@@ -242,7 +289,7 @@ modimport("scripts/a.lua")
 
 由于lua语言允许c/c++，而且饥荒的底层引擎（动画、皮肤系统等）确实是用c/c++编写的，这导致我们在lua层无法修改c/c++层，除非你不用lua，用其他工具，这是非常困难的。
 
-以皮肤系统为例，我们知道KLei检查是否拥有皮肤会调用`TheInventory:Check(Client)Ownership(user_id, item)`，这个接口定义在c/c++层。我们试图修改之：
+以皮肤系统为例，我们知道KLei检查是否拥有皮肤会调用`TheInventory:Check[Client]Ownership(user_id, item)`，这个接口定义在c/c++层。我们试图修改之：
 
 ```lua
 oldClientCheckfn=TheInventory.CheckClientOwnership
@@ -258,9 +305,10 @@ InventoryProxy.CheckOwnership=newCheckfn
 --然而你会发现没有卵用
 --进去看看我的财物
 --炸了
+--注：Klei用皮肤系统做了心跳机制，如果发现异常就强制重启了。这个功能看起来可能是在07x23发现漏洞时加的
 ```
 
-由上述例子可见，lua无法修改c/c++，而且lua甚至看不到c/c++的任何内容，只知道接口（此例中是`InventoryProxy`）
+由上述例子可见，lua无法修改c/c++，而且lua甚至看不到c/c++的任何内容，只知道接口（此例中是`InventoryProxy`）。甚至这些接口也都是我们不知道的，比如`Sim`之于`TheSim`。
 
 ### 2.2 全局变量
 
@@ -433,7 +481,7 @@ end
 
 ### 2.4局部变量
 
-任何局部变量都无法用正常手段修改
+任何局部变量都无法用正常手段修改，其中上值`upvalue`可以用debug库修改，局部变量`localvalue`不推荐修改。
 
 以abigail.lua为例
 
@@ -470,7 +518,7 @@ PrefabFiles={"abigail"}
 
 `name,value=debug.getupvalue(env, id)`与`debug.setupvalue(env, id, value)`是lua自带的调试工具。它能获取到局部变量。第一个参数的专业名称叫`闭包closure`，我们理解成局部变量的作用域，通常是一个函数的作用域。
 
-还有一个`debug.getlocal`，是获取函数内定义的局部变量的，但我们需要的往往是函数外定义的局部变量，如果必要你也可以把这个东西添加到你的工具箱里。
+还有一个`debug.getlocal`，是获取函数内定义的局部变量的（不是很有用），但我们需要的往往是函数外定义的局部变量，如果必要你也可以把这个东西添加到你的工具箱里。
 
 以下是一个简单的例子，但是它只实现了一层作用域的hack。
 
@@ -515,7 +563,7 @@ function SetValue(env, key, val)
 end
 ```
 
-我们的目标是把这个工具做成适用于所有局部变量的东西。在上述函数`GetValue`中，我们输入`Prefabs[prefab_name].fn`作为`env`，其中`prefab_name`是某个prefab的名字，就可以读到这个成员函数里使用的所有变量了。但事情往往是这样的：
+我们的目标是把这个工具做成适用于所有局部变量的东西。在上述函数`GetValue`中，我们输入`Prefabs[prefab_name].fn`（此处有一个小坑，因为modmain的env里也有一个Prefabs，所以你需要使用_G.Prefabs）作为`env`，其中`prefab_name`是某个prefab的名字，就可以读到这个成员函数里使用的所有变量了。但事情往往是这样的：
 
 ```lua
 local c=AnotherFnInAnotherFile()
@@ -596,11 +644,45 @@ function self:Close()
 end
 ```
 
-### 3.2 钩子函数
+你可以添加更丰富的特性，比如：
+
+- 在装饰器内防止重复装饰，即检查oldfn==newfn
+- 在新函数内防止重入，即设置一个信号量（详见操作系统的知识）
+- 给新函数传递旧函数的返回值，即玩一下`arg`、`unpack`与`...`
+
+### 3.2 钩子函数（hook）、监听事件
+
+我怎么知道一件事情发生了、某个函数调用了、某个库加载了？如果对方本身就有机制来通知我，那就非常方便，否则就需要加钩子。
+
+prefab之间发事件一般都是通过`PushEvent`、`ListenForEvent`与`RemoveEventCallback`进行，于是最好的办法就是监听这些事件。
+
+否则，如果变量/函数能够修改，就可以用装饰器模式或debug库。比如mod API中，给所有`Class`类加钩子，就是通过装饰`_ctor`（constructor的缩写）实现的。
+
+最后，如果无法修改某个变量，只能读取它的值，那么可以设置一个定时器，定时检查该变量的值，当然这也是最差的了。比如mod`行为排队论Action Queue`就是用这种办法实现动作监听的。
 
 ### 3.3 探测入口
 
+
+
 ### 3.4 加强mod兼容性
+
+##### 3.4.1兼容别人的mod
+
+直接读其他mod的源码，规避冲突可能性。适合于少量mod。
+
+##### 3.4.2留接口给别人兼容
+
+##### 3.4.3暴露内部API
+
+##### 3.4.4冲突检查
+
+使用`traceback`（见###4.2)查看待修改的节点是否在其他mod文件夹里，如果是的话，考虑警报
+
+### 3.5 透明代理
+
+如果你希望拦截、修改、分流参数，而不破坏原来的逻辑，那么你可以在某个节点上加一层代理。
+
+使用`setmetatable`将该节点的包装成一个表，然后利用元表里的`__index`和`__newindex`完成透明代理。
 
 ## 4 Debug
 
@@ -612,18 +694,23 @@ end
 2.   server_log.txt
 3.   master_server_log.txt
 4.   caves_server_log.txt
+4.   ...（多层世界的其他日志，如果不是master和caves的话）
 
-我们以client_log为例读一读
+##### 4.1.1在终端查看日志
 
-`[00:00:00]: System Memory:`一些系统信息
+```cmd
+PowerShell Get-Content C:/Users/你的用户名/Documents/Klei/DoNotStarveTogether/client_log.txt -wait
+```
 
-`[00:00:06]: loaded modindex`开始加载modinfo了，这时你能看到一些关于mod的信息
+打开任何一个支持运行Powershell的终端（比如所有的Windows系统），或者直接用Powershell(这样不需要输入单词Powershell)，输入以上命令，你就可以实时查看日志文件了。
 
-`[00:00:16]: Reset() returning`加载mod完毕
+##### 4.1.2在文本编辑器里查看日志
 
-`[00:00:16]: Do AutoLogin`开始登录
+打开Notepad、Notepad 2、Notepad 3、Notepad ++、Vim、Emacs、Microsoft Visual Studio Code等等，即可查看日志，有些编辑器支持实时重新载入。
 
-（未完待续）
+##### 4.1.3 Baretail
+
+Zarklord推荐的一款能打开大文件（>5MB）的文本浏览器。
 
 ### 4.2 使用print调试
 
@@ -663,7 +750,6 @@ function Print(...)
     --读行号，读不到就读函数定义句的行号
     local line=info.currentline~=-1 and info.currentline or info.linedefined
     --合成字符串
-    --来自Gem Core的代码
     local function packstring(...)
         local str = ""
         local n = select('#', ...)
@@ -690,9 +776,11 @@ function Print(...)
 end
 ```
 
-然后我们想要支持代码测试，即`assert`语句但不报错只提示。我想，可以用`debug.getupvalue`来实现，能够支持像`Assert("inst.components.hunger.value",1)->"Test passed, value==1" | "Test failed, value=2, not 1" | "Test aborted, hunger is nil, everything in inst.components are {...}"`这样的。
+然后我们想要支持代码测试，即`assert`语句但不报错只提示，使用`xpcall`+`traceback`即可实现。
 
 ### 4.3 独立的输出文件
+
+输出到一个单独的文件里
 
 ### 4.4 控制台
 
@@ -707,5 +795,59 @@ a=1
 --回车
 print(a)
 --1
+```
+
+##### 4.4.1 dumptable
+
+如果你想查看表格，那么可以使用这个Klei写的函数
+
+##### 4.4.2 Console++
+
+https://steamcommunity.com/sharedfiles/filedetails/?id=2758553790
+
+特性：
+
+- 返回值显示（自动print）
+- 多行
+- log可翻页
+- 基于属性的动态单词补全
+
+### 4.5 疑难杂症：c层崩溃、mod管理器崩溃
+
+比如声音FMOD、动画Anim Manager管理器是在c层工作的，你不可以知道它们的具体情况，除非你会反编译。这些模块错误时有可能在日志文件里打印信息（在游戏的控制台里是看不到的！），也可能生成dmp文件，也可能什么都不生成。
+
+遇到这种情况我们除了检查素材是否有误外没什么可做的。比如：贴图马赛克化、贴图消失、声音消失均是素材有误导致的。
+
+mod管理器用于加载mod，显而易见，如果这个东西崩溃了就不可能看到报错界面，因为报错界面后于mod加载。同理，客户端mod在主界面出现之前就崩了会导致连游戏都进不去，你需要手动关闭崩溃的mod（最简单的就是文件夹名字改掉）。
+
+例子：在modmain里输入以下句子就会导致mod管理器崩溃。
+
+```lua
+modname=nil
+```
+
+其他情况下，即使没有mod，游戏本身也会崩溃，比如：
+
+- 网络故障，无法连接到Klei服务器
+- 网络故障，数据没有从服务器端完整地下载到客户端
+- 恶性bug
+- ……
+
+### 4.6错误追踪
+
+https://steamcommunity.com/sharedfiles/filedetails/?id=2427481232
+
+订阅该mod后可以显示错误点与其他mod的关系。
+
+```lua
+--任务：基于traceback写一个bugreport
+--特性：
+--[[
+1.显示错误点的文件名与行号
+2.显示出错的是官方代码还是mod
+3.查看栈里的其余函数，也做1、2操作
+4.打印环境中的局部变量
+5.综合以上信息给出可能的错误原因
+]]
 ```
 
