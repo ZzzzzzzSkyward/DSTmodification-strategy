@@ -73,7 +73,7 @@ Anything you can find located in a chain can be accessed, and the contrary, can'
 
 Won't explain it, if you are curious or want to build your own utility, you may try yourself.
 
-The following code works in `_G`, if you want to work in modmain.lua you either defines those global values as local ones like `local debug=GLOBAL.debug` or you indirectly access global environment by `GLOBAL.getmetatable(env).__index = function(t, k)return GLOBAL.rawget(t, k)end`
+The following code works in `_G`, if you want to work in modmain.lua you either defines those global values as local ones like `local debug=GLOBAL.debug` or you indirectly access global environment by `GLOBAL.getmetatable(env).__index = function(t, k)return GLOBAL.rawget(GLOBAL, k)end`
 
 ```lua
 function GetValue(obj, key)
