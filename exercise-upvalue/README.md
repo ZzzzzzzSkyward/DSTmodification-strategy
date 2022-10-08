@@ -230,7 +230,7 @@ end
 UPVALUE = {
     get = function(obj, key)
         if type(obj) == "string" then
-            obj = safeget(GLOBAL, obj)
+            obj = rawget(GLOBAL, obj)
         end
         if type(obj) ~= "function" then
             print("UPVALUE.get:", obj, "is not a function")
