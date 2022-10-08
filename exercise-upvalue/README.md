@@ -309,7 +309,7 @@ end
 ```lua
 AddPrefabPostInit("woodie",function(inst)
 	--_G.Prefabs.woodie.fn
-	local fn=ThePrefab.woodie.fn
+	local fn=_G.Prefabs.woodie.fn
 	local function IsWereMode(mode)
 		env.print("hacked is were mode")
 		return WEREMODE_NAMES[mode] ~= nil
